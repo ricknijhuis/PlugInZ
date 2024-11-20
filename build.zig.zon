@@ -17,10 +17,11 @@
     // with this value.
     //.minimum_zig_version = "0.11.0",
     .dependencies = .{
-        .glfw = .{
-            .url = "https://github.com/zig-gamedev/zglfw/archive/8199e352d1a5f1dfa3ab08da6102342c850ca258.tar.gz",
-            .hash = "1220074231fcf6556b27e0ac6a3b22a19062c0c4bc3fd77c6fdcede15303af824c27",
-        },
+        .glfw = .{ .path = "../PlugInZ.GLFW" },
+        // .glfw = .{
+        //     .url = "https://github.com/ricknijhuis/PlugInZ.GLFW/archive/6dc3eb62d5c760f72eb8064b617f30e3d44312a4.tar.gz",
+        //     .hash = "12208c5276aeaa38124fab308ea5e3a159800c2cb27d65a28606705e2bd641da6807",
+        // },
         .vulkan_zig = .{
             .url = "https://github.com/Snektron/vulkan-zig/archive/06dae6c9201863837a92064e2e7814aa71064067.tar.gz",
             .hash = "1220edeb3fc7dfc40e6fde705a108edce0a3cc76d165a7c9919d1fb037eccec43372",

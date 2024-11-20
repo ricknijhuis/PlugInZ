@@ -1,4 +1,5 @@
 const vk = @import("vulkan");
+const glfw = @import("glfw");
 
 pub const required_layers = [_][*:0]const u8{"VK_LAYER_KHRONOS_validation"};
 pub const required_device_extensions = [_][*:0]const u8{vk.extensions.khr_swapchain.name};
@@ -25,6 +26,12 @@ const physical_device = @import("vulkan_physical_device.zig");
 pub const VulkanPhysicalDevice = physical_device.VulkanPhysicalDevice;
 pub const DeviceRequirements = physical_device.DeviceRequirements;
 pub const DeviceQueueFamilyIndices = physical_device.DeviceQueueFamilyIndices;
+pub const VulkanPhysicalDeviceCollection = @import("vulkan_physical_device_collection.zig").VulkanPhysicalDeviceCollection;
 
 pub const VulkanContext = @import("vulkan_context.zig").VulkanContext;
 pub const VulkanLogicalDevice = @import("vulkan_device.zig").VulkanLogicalDevice;
+pub const VulkanSurface = @import("vulkan_surface.zig").VulkanSurface;
+
+pub extern fn glfwGetInstanceProcAddress(instance: vk.Instance, procname: [*:0]const u8) vk.PfnVoidFunction;
+pub extern fn glfwGetPhysicalDevicePresentationSupport(instance: vk.Instance, pdev: vk.PhysicalDevice, queuefamily: u32) c_int;
+pub extern fn glfwCreateWindowSurface(instance: vk.Instance, window: *glfw.Window, allocation_callbacks: ?*const vk.AllocationCallbacks, surface: *vk.SurfaceKHR) vk.Result;

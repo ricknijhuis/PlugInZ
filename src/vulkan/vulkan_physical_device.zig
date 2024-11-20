@@ -1,7 +1,5 @@
 const std = @import("std");
 const vk = @import("vulkan");
-const c = @import("c.zig");
-
 const core = @import("core.zig");
 
 const VulkanContext = core.VulkanContext;
@@ -19,24 +17,24 @@ pub const DeviceQueueFamilyIndices = struct {
 
 pub const VulkanPhysicalDevice = struct {
     ctx: *const VulkanContext,
-    physical_device: vk.PhysicalDevice,
-    physical_device_properties: vk.PhysicalDeviceProperties,
-    physical_device_mem_properties: vk.PhysicalDeviceMemoryProperties,
-    physical_device_features: vk.PhysicalDeviceFeatures,
-    physical_device_extensions: []vk.ExtensionProperties,
-    physical_device_queue_families: []vk.QueueFamilyProperties,
+    device: vk.PhysicalDevice,
+    properties: vk.PhysicalDeviceProperties,
+    mem_properties: vk.PhysicalDeviceMemoryProperties,
+    features: vk.PhysicalDeviceFeatures,
+    extensions: []vk.ExtensionProperties,
+    queue_families: []vk.QueueFamilyProperties,
 
     pub fn init(self: *VulkanPhysicalDevice, ctx: *const VulkanContext, physical_device: vk.PhysicalDevice) !void {
         self.ctx = ctx;
-        self.physical_device = physical_device;
-        self.physical_device_properties = ctx.instance.getPhysicalDeviceProperties(physical_device);
-        self.physical_device_mem_properties = ctx.instance.getPhysicalDeviceMemoryProperties(physical_device);
-        self.physical_device_features = ctx.instance.getPhysicalDeviceFeatures(physical_device);
-        self.physical_device_queue_families = try ctx.instance.getPhysicalDeviceQueueFamilyPropertiesAlloc(
+        self.device = physical_device;
+        self.properties = ctx.instance.getPhysicalDeviceProperties(physical_device);
+        self.mem_properties = ctx.instance.getPhysicalDeviceMemoryProperties(physical_device);
+        self.features = ctx.instance.getPhysicalDeviceFeatures(physical_device);
+        self.queue_families = try ctx.instance.getPhysicalDeviceQueueFamilyPropertiesAlloc(
             physical_device,
             ctx.allocator,
         );
-        self.physical_device_extensions = try ctx.instance.enumerateDeviceExtensionPropertiesAlloc(
+        self.extensions = try ctx.instance.enumerateDeviceExtensionPropertiesAlloc(
             physical_device,
             null,
             ctx.allocator,
@@ -44,8 +42,8 @@ pub const VulkanPhysicalDevice = struct {
     }
 
     pub fn deinit(self: VulkanPhysicalDevice) void {
-        self.allocator.free(self.physical_device_extensions);
-        self.allocator.free(self.physical_device_queue_families);
+        self.ctx.allocator.free(self.extensions);
+        self.ctx.allocator.free(self.queue_families);
     }
 
     pub fn meetsRequirements(self: VulkanPhysicalDevice, requirements: DeviceRequirements) !bool {
@@ -69,7 +67,7 @@ pub const VulkanPhysicalDevice = struct {
         extensions: []const [*c]const u8,
     ) bool {
         for (extensions) |required_extension| {
-            for (self.physical_device_extensions) |extension| {
+            for (self.extensions) |extension| {
                 if (std.mem.eql(u8, std.mem.span(required_extension), std.mem.sliceTo(&extension.extension_name, 0))) {
                     break;
                 }
@@ -83,10 +81,10 @@ pub const VulkanPhysicalDevice = struct {
 
     fn checkSurfaceSupport(self: VulkanPhysicalDevice, surface: vk.SurfaceKHR) !bool {
         var format_count: u32 = undefined;
-        _ = try self.ctx.instance.getPhysicalDeviceSurfaceFormatsKHR(self.physical_device, surface, &format_count, null);
+        _ = try self.ctx.instance.getPhysicalDeviceSurfaceFormatsKHR(self.device, surface, &format_count, null);
 
         var present_mode_count: u32 = undefined;
-        _ = try self.ctx.instance.getPhysicalDeviceSurfacePresentModesKHR(self.physical_device, surface, &present_mode_count, null);
+        _ = try self.ctx.instance.getPhysicalDeviceSurfacePresentModesKHR(self.device, surface, &present_mode_count, null);
 
         return format_count > 0 and present_mode_count > 0;
     }
@@ -99,11 +97,43 @@ pub const VulkanPhysicalDevice = struct {
         return false;
     }
 
-    fn getQueueFamilies(self: VulkanPhysicalDevice, surface: vk.SurfaceKHR) !?DeviceQueueFamilyIndices {
+    // orders by gpu type and memory size (general indicative of gpu performance)
+    pub fn sortDeviceLessThan(context: void, lhs: VulkanPhysicalDevice, rhs: VulkanPhysicalDevice) bool {
+        _ = context; // autofix
+        // prefer discrete gpu
+        if (lhs.properties.device_type == vk.PhysicalDeviceType.discrete_gpu and rhs.properties.device_type != vk.PhysicalDeviceType.discrete_gpu)
+            return false;
+
+        // if not discrete prefer integrated
+        if (lhs.properties.device_type == vk.PhysicalDeviceType.integrated_gpu and rhs.properties.device_type != vk.PhysicalDeviceType.integrated_gpu)
+            return false;
+
+        // check memory size
+        var lhs_total_device_local: vk.DeviceSize = 0;
+        for (lhs.mem_properties.memory_heaps) |heap| {
+            if (heap.flags.device_local_bit) {
+                lhs_total_device_local += heap.size;
+            }
+        }
+
+        var rhs_total_device_local: vk.DeviceSize = 0;
+        for (rhs.mem_properties.memory_heaps) |heap| {
+            if (heap.flags.device_local_bit) {
+                rhs_total_device_local += heap.size;
+            }
+        }
+
+        if (lhs_total_device_local > rhs_total_device_local)
+            return false;
+
+        return true;
+    }
+
+    pub fn getQueueFamilies(self: VulkanPhysicalDevice, surface: vk.SurfaceKHR) !?DeviceQueueFamilyIndices {
         var graphics_family: ?u32 = null;
         var present_family: ?u32 = null;
 
-        for (self.physical_device_queue_families, 0..) |properties, i| {
+        for (self.queue_families, 0..) |properties, i| {
             const family: u32 = @intCast(i);
 
             if (graphics_family == null and properties.queue_flags.graphics_bit) {
@@ -111,7 +141,7 @@ pub const VulkanPhysicalDevice = struct {
             }
 
             if (present_family == null and (try self.ctx.instance.getPhysicalDeviceSurfaceSupportKHR(
-                self.physical_device,
+                self.device,
                 family,
                 surface,
             )) == vk.TRUE) {
