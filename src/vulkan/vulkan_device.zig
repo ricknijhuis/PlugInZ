@@ -53,7 +53,10 @@ pub const VulkanLogicalDevice = struct {
         }
         defer self.context.instance.destroySurfaceKHR(surface, null);
 
-        const extensions = [_][*:0]const u8{vk.extensions.khr_swapchain.name};
+        const extensions = [_][*:0]const u8{
+            vk.extensions.khr_swapchain.name,
+            vk.extensions.khr_dynamic_rendering.name,
+        };
         const requirements: DeviceRequirements = .{
             .surface = surface,
             .extensions = &extensions,
@@ -107,12 +110,19 @@ pub const VulkanLogicalDevice = struct {
             self.present_queue_family_index = families.present_family;
         }
 
-        const device = try context.instance.createDevice(self.physical_device.device, &.{
+        const dynamic_endering_features = vk.PhysicalDeviceDynamicRenderingFeatures{
+            .dynamic_rendering = vk.TRUE,
+        };
+
+        const device_create_info = vk.DeviceCreateInfo{
+            .p_next = &dynamic_endering_features,
             .queue_create_info_count = queue_create_info_count,
             .p_queue_create_infos = &queue_create_info,
             .enabled_extension_count = @intCast(requirements.extensions.len),
             .pp_enabled_extension_names = @ptrCast(requirements.extensions.ptr),
-        }, null);
+        };
+
+        const device = try context.instance.createDevice(self.physical_device.device, &device_create_info, null);
 
         const device_dispatch = try context.allocator.create(DeviceDispatch);
         errdefer context.allocator.destroy(device_dispatch);

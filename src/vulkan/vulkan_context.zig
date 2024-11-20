@@ -106,7 +106,10 @@ pub const VulkanContext = struct {
 fn getRequiredExtensions(allocator: std.mem.Allocator) ![][*c]const u8 {
     var glfw_extensions_count: i32 = 0;
     const glfw_extensions = glfw.getRequiredInstanceExtensions(&glfw_extensions_count)[0..@intCast(glfw_extensions_count)];
-    const other_extensions = [1][*c]const u8{vk.extensions.ext_debug_utils.name};
+    const other_extensions = [_][*c]const u8{
+        vk.extensions.ext_debug_utils.name,
+        vk.extensions.khr_get_physical_device_properties_2.name,
+    };
 
     const extensions = try allocator.alloc([*c]const u8, glfw_extensions.len + other_extensions.len);
     @memcpy(extensions[0..glfw_extensions.len], glfw_extensions);

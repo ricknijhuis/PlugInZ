@@ -2,15 +2,24 @@ const vk = @import("vulkan");
 const glfw = @import("glfw");
 
 pub const required_layers = [_][*:0]const u8{"VK_LAYER_KHRONOS_validation"};
-pub const required_device_extensions = [_][*:0]const u8{vk.extensions.khr_swapchain.name};
-pub const apis: []const vk.ApiInfo = &.{ .{
-    .base_commands = .{
-        .createInstance = true,
+pub const apis: []const vk.ApiInfo = &.{
+    .{
+        .base_commands = .{
+            .createInstance = true,
+        },
+        .instance_commands = .{
+            .createDevice = true,
+        },
     },
-    .instance_commands = .{
-        .createDevice = true,
-    },
-}, vk.features.version_1_0, vk.features.version_1_1, vk.features.version_1_2, vk.features.version_1_3, vk.extensions.khr_surface, vk.extensions.khr_swapchain, vk.extensions.ext_debug_utils };
+    vk.features.version_1_0,
+    vk.features.version_1_1,
+    vk.features.version_1_2,
+    vk.features.version_1_3,
+    vk.extensions.khr_surface,
+    vk.extensions.khr_swapchain,
+    vk.extensions.ext_debug_utils,
+    vk.extensions.khr_dynamic_rendering,
+};
 
 /// Next, pass the `apis` to the wrappers to create dispatch tables.
 pub const BaseDispatch = vk.BaseWrapper(apis);
