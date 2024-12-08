@@ -1,91 +1,115 @@
 const std = @import("std");
 
+const assets = @import("build.assets.zig");
+
+// Although this function looks imperative, note that its job is to
+// declaratively construct a build graph that will be executed by an external
+// runner.
 pub fn build(b: *std.Build) void {
+    // Standard target options allows the person running `zig build` to choose
+    // what target to build for. Here we do not override the defaults, which
+    // means any target is allowed, and the default is native. Other options
+    // for restricting supported target set are available.
     const target = b.standardTargetOptions(.{});
+
+    // Standard optimization options allow the person running `zig build` to select
+    // between Debug, ReleaseSafe, ReleaseFast, and ReleaseSmall. Here we do not
+    // set a preferred release mode, allowing the user to decide how to optimize.
     const optimize = b.standardOptimizeOption(.{});
 
     const glfw_dep = addGlfwDependency(b, target, optimize);
+    const vma_dep = addVmaDependency(b, target, optimize);
     const vulkan_module = addVulkanModule(b, target, optimize);
-    const pluginz_module = addPlugInZModule(b, target, optimize, glfw_dep, vulkan_module);
+    const pluginz_module = addPlugInZModule(b, target, optimize, glfw_dep, vma_dep, vulkan_module);
 
-    addSandbox(b, target, optimize, pluginz_module, glfw_dep);
-    addTests(b, target, optimize, glfw_dep);
-
-    // const math_module = b.addModule(math_module_name, .{
-    //     .root_source_file = b.path("src/math/root.zig"),
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
-
-    // const rendering_module = b.addModule(rendering_module_name, .{
-    //     .root_source_file = b.path("src/rendering/root.zig"),
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
-    // rendering_module.addImport(platform_module_name, platform_module);
-    // rendering_module.addImport(math_module_name, math_module);
-    // rendering_module.addImport(vulkan_module_name, vulkan_module);
-    // rendering_module.addImport("glfw", glfw_dep.module("root"));
-    // rendering_module.linkLibrary(glfw_dep.artifact(glfw_module_name));
-
-    // // UNIT TESTS
-    // const math_unit_tests = b.addTest(.{
-    //     .root_source_file = b.path("src/math/root.zig"),
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
-    // const run_math_unit_tests = b.addRunArtifact(math_unit_tests);
-
-    // const platform_unit_tests = b.addTest(.{
-    //     .root_source_file = b.path("src/platform/root.zig"),
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
-    // platform_unit_tests.root_module.addImport("glfw", glfw_dep.module("root"));
-    // platform_unit_tests.linkLibrary(glfw_dep.artifact(glfw_module_name));
-    // const run_platform_unit_tests = b.addRunArtifact(platform_unit_tests);
-
-    // const rendering_unit_tests = b.addTest(.{
-    //     .root_source_file = b.path("src/rendering/root.zig"),
-    //     .target = target,
-    //     .optimize = optimize,
-    // });
-    // rendering_unit_tests.root_module.addImport(vulkan_module_name, vulkan_module);
-    // rendering_unit_tests.root_module.addImport(platform_module_name, platform_module);
-    // const run_rendering_unit_tests = b.addRunArtifact(rendering_unit_tests);
-
-    // const test_step = b.step("test", "Run unit tests");
-    // test_step.dependOn(&run_math_unit_tests.step);
-    // test_step.dependOn(&run_platform_unit_tests.step);
-    // test_step.dependOn(&run_rendering_unit_tests.step);
-}
-
-fn addGlfwDependency(
-    b: *std.Build,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-) *std.Build.Dependency {
-    return b.dependency(glfw_module_name, .{
+    const exe = b.addExecutable(.{
+        .name = "sandbox",
+        .root_source_file = b.path("src/sandbox/main.zig"),
         .target = target,
         .optimize = optimize,
     });
-}
 
-fn addPlugInZModule(
-    b: *std.Build,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
-    glfw_dep: *std.Build.Dependency,
-    vulkan_module: *std.Build.Module,
-) *std.Build.Module {
-    const pluginz_module = b.addModule(pluginz_module_name, .{
-        .root_source_file = b.path("src/root.zig"),
+    exe.root_module.addImport("pluginz", pluginz_module);
+
+    // This declares intent for the executable to be installed into the
+    // standard location when the user invokes the "install" step (the default
+    // step when running `zig build`).
+    b.installArtifact(exe);
+
+    // This *creates* a Run step in the build graph, to be executed when another
+    // step is evaluated that depends on it. The next line below will establish
+    // such a dependency.
+    const run_cmd = b.addRunArtifact(exe);
+
+    // By making the run step depend on the install step, it will be run from the
+    // installation directory rather than directly from within the cache directory.
+    // This is not necessary, however, if the application depends on other installed
+    // files, this ensures they will be present and in the expected location.
+    run_cmd.step.dependOn(b.getInstallStep());
+
+    // This allows the user to pass arguments to the application in the build
+    // command itself, like this: `zig build run -- arg1 arg2 etc`
+    if (b.args) |args| {
+        run_cmd.addArgs(args);
+    }
+
+    // This creates a build step. It will be visible in the `zig build --help` menu,
+    // and can be selected like this: `zig build run`
+    // This will evaluate the `run` step rather than the default, which is "install".
+    const run_step = b.step("run", "Run the app");
+    run_step.dependOn(&run_cmd.step);
+
+    // Creates a step for unit testing. This only builds the test executable
+    // but does not run it.
+    const lib_unit_tests = b.addTest(.{
+        .root_source_file = b.path("src/pluginz/root.zig"),
         .target = target,
         .optimize = optimize,
     });
-    pluginz_module.addImport(vulkan_module_name, vulkan_module);
-    pluginz_module.addImport(glfw_module_name, glfw_dep.module("root"));
-    pluginz_module.linkLibrary(glfw_dep.artifact(glfw_module_name));
+
+    const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);
+
+    // Similar to creating the run step earlier, this exposes a `test` step to
+    // the `zig build --help` menu, providing a way for the user to request
+    // running the unit tests.
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_lib_unit_tests.step);
+
+    assets.addAssets(b, exe);
+}
+
+pub fn addPlugInZModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.OptimizeMode, glfw: *std.Build.Dependency, vma: *std.Build.Dependency, vulkan: *std.Build.Module) *std.Build.Module {
+    const core_module = b.createModule(.{
+        .root_source_file = b.path("src/pluginz/core/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    _ = core_module; // autofix
+
+    const internal_module = b.createModule(.{
+        .root_source_file = b.path("src/pluginz/internal/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    _ = internal_module; // autofix
+
+    const pluginz_module = b.addModule("pluginz", .{
+        .root_source_file = b.path("src/pluginz/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+    // internal_module.linkLibrary(glfw.artifact("glfw"));
+    // internal_module.addImport("glfw", glfw.module("root"));
+    // internal_module.addImport("core", core_module);
+    pluginz_module.addImport("vulkan", vulkan);
+
+    pluginz_module.linkLibrary(glfw.artifact("glfw"));
+    pluginz_module.addImport("glfw", glfw.module("root"));
+
+    pluginz_module.linkLibrary(vma.artifact("vma"));
+    pluginz_module.addImport("vma", vma.module("root"));
+    // pluginz_module.addImport("core", core_module);
+    // pluginz_module.addImport("internal", internal_module);
 
     return pluginz_module;
 }
@@ -109,56 +133,24 @@ fn addVulkanModule(b: *std.Build, target: std.Build.ResolvedTarget, optimize: st
     return vulkan_zig;
 }
 
-fn addSandbox(
+fn addGlfwDependency(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
-    pluginz_module: *std.Build.Module,
-    glfw_dep: *std.Build.Dependency,
-) void {
-    const exe = b.addExecutable(.{
-        .name = "Sandbox",
-        .root_source_file = b.path("src/sandbox.zig"),
+) *std.Build.Dependency {
+    return b.dependency("glfw", .{
         .target = target,
         .optimize = optimize,
     });
-    exe.root_module.addImport(glfw_module_name, glfw_dep.module("root"));
-    exe.linkLibrary(glfw_dep.artifact(glfw_module_name));
-
-    exe.root_module.addImport(pluginz_module_name, pluginz_module);
-
-    b.installArtifact(exe);
-    const run_cmd = b.addRunArtifact(exe);
-
-    run_cmd.step.dependOn(b.getInstallStep());
-
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-
-    const run_step = b.step("run", "Run the app");
-    run_step.dependOn(&run_cmd.step);
 }
 
-fn addTests(
+fn addVmaDependency(
     b: *std.Build,
     target: std.Build.ResolvedTarget,
     optimize: std.builtin.OptimizeMode,
-    glfw_dep: *std.Build.Dependency,
-) void {
-    const platform_unit_tests = b.addTest(.{
-        .root_source_file = b.path("src/platform/root.zig"),
+) *std.Build.Dependency {
+    return b.dependency("vma", .{
         .target = target,
         .optimize = optimize,
     });
-    platform_unit_tests.root_module.addImport("glfw", glfw_dep.module("root"));
-    platform_unit_tests.linkLibrary(glfw_dep.artifact(glfw_module_name));
-    const run_platform_unit_tests = b.addRunArtifact(platform_unit_tests);
-
-    const test_step = b.step("test", "Run unit tests");
-    test_step.dependOn(&run_platform_unit_tests.step);
 }
-
-const glfw_module_name = "glfw";
-const pluginz_module_name = "pluginz";
-const vulkan_module_name = "vulkan";
