@@ -1,7 +1,6 @@
 const std = @import("std");
 
 const vk = @import("vulkan");
-const vma = @import("vma");
 
 const Instance = @import("vulkan/instance.zig").Instance;
 const LogicalDevice = @import("vulkan/logical_device.zig").LogicalDevice;
@@ -40,8 +39,6 @@ pub const Renderer = struct {
     pipelines: PipelineResourceBuffer,
     // Current active pipeline
     pipeline: *PipelineResource,
-
-    allocator: vma.Allocator,
 
     pub fn init(self: *Renderer, allocator: std.mem.Allocator) !void {
         self.base = undefined;
