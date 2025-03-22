@@ -15,19 +15,13 @@ pub fn build(b: *std.Build) void {
     // Modules
     const options_mod = options.createModule();
 
-    const sandbox_mod = b.createModule(.{
-        .root_source_file = b.path("src/sandbox/root.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     const exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    const engine_mod = b.createModule(.{
+    const engine_mod = b.addModule("pluginz", .{
         .root_source_file = b.path("src/engine/root.zig"),
         .target = target,
         .optimize = optimize,
@@ -37,7 +31,6 @@ pub fn build(b: *std.Build) void {
     engine_mod.addImport("options", options_mod);
     exe_mod.addImport("engine", engine_mod);
     exe_mod.addImport("options", options_mod);
-    sandbox_mod.addImport("engine", engine_mod);
 
     // Artifacts
     const exe = b.addExecutable(.{
@@ -45,13 +38,6 @@ pub fn build(b: *std.Build) void {
         .root_module = exe_mod,
     });
 
-    const lib = b.addLibrary(.{
-        .name = name,
-        .root_module = sandbox_mod,
-        .linkage = .dynamic,
-    });
-
-    b.installArtifact(lib);
     b.installArtifact(exe);
 
     // Executable
@@ -63,6 +49,4 @@ pub fn build(b: *std.Build) void {
         run_cmd.addArgs(args);
     }
     run_step.dependOn(&run_cmd.step);
-
-    // Unit tests
 }
