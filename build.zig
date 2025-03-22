@@ -10,7 +10,7 @@ pub fn build(b: *std.Build) void {
     options.addOption([]const u8, "name", name);
 
     // Steps
-    const run_step = b.step("run", "Run the app");
+    // const run_step = b.step("run", "Run the app");
 
     // Modules
     const options_mod = options.createModule();
@@ -41,12 +41,12 @@ pub fn build(b: *std.Build) void {
     b.installArtifact(exe);
 
     // Executable
-    const run_cmd = b.addRunArtifact(exe);
+    // const run_cmd = b.addRunArtifact(exe);
 
-    run_cmd.step.dependOn(b.getInstallStep());
+    // run_cmd.step.dependOn(b.getInstallStep());
 
-    if (b.args) |args| {
-        run_cmd.addArgs(args);
-    }
-    run_step.dependOn(&run_cmd.step);
+    // if (b.args) |args| {
+    //     run_cmd.addArgs(args);
+    // }
+    // run_step.dependOn(&run_cmd.step);
 }
