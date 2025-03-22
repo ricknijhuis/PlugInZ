@@ -49,8 +49,8 @@ pub const ApplicationCallbacks = struct {
     }
 
     pub fn deinit(self: *ApplicationCallbacks) void {
-        // self.initFn = undefined;
-        // self.deinitFn = undefined;
+        self.initFn = undefined;
+        self.deinitFn = undefined;
         self.lib.close();
     }
 };

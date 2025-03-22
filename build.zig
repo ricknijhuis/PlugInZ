@@ -1,16 +1,26 @@
 const std = @import("std");
+const log = std.log;
 
-pub fn build(b: *std.Build) void {
+pub fn build(b: *std.Build) !void {
     // General options
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
-    const name = b.option([]const u8, "name", "Name of the app") orelse "PlugInZ";
+    const name = b.option([]const u8, "name", "Name of the app") orelse {
+        log.err("Option 'name' is required", .{});
+        return error.MissingOption;
+    };
+
+    const version = b.option([]const u8, "version", "Version of the application") orelse {
+        log.err("Option 'version' is required", .{});
+        return error.MissingOption;
+    };
+
+    // Validate if version is semantic
+    const sem_ver = try std.SemanticVersion.parse(version);
 
     const options = b.addOptions();
     options.addOption([]const u8, "name", name);
-
-    // Steps
-    // const run_step = b.step("run", "Run the app");
+    options.addOption([]const u8, "version", version);
 
     // Modules
     const options_mod = options.createModule();
@@ -36,17 +46,8 @@ pub fn build(b: *std.Build) void {
     const exe = b.addExecutable(.{
         .name = name,
         .root_module = exe_mod,
+        .version = sem_ver,
     });
 
     b.installArtifact(exe);
-
-    // Executable
-    // const run_cmd = b.addRunArtifact(exe);
-
-    // run_cmd.step.dependOn(b.getInstallStep());
-
-    // if (b.args) |args| {
-    //     run_cmd.addArgs(args);
-    // }
-    // run_step.dependOn(&run_cmd.step);
 }
