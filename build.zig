@@ -25,27 +25,50 @@ pub fn build(b: *std.Build) !void {
     // Modules
     const options_mod = options.createModule();
 
-    const exe_mod = b.createModule(.{
+    const pluginz_exe_mod = b.createModule(.{
         .root_source_file = b.path("src/main.zig"),
         .target = target,
         .optimize = optimize,
     });
 
-    const engine_mod = b.addModule("pluginz", .{
-        .root_source_file = b.path("src/engine/root.zig"),
+    const pluginz_engine_mod = b.createModule(.{
+        .root_source_file = b.path("src/pluginz/engine/root.zig"),
         .target = target,
         .optimize = optimize,
         .link_libc = true,
     });
 
-    engine_mod.addImport("options", options_mod);
-    exe_mod.addImport("engine", engine_mod);
-    exe_mod.addImport("options", options_mod);
+    const pluginz_application_mod = b.createModule(.{
+        .root_source_file = b.path("src/pluginz/application/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const pluginz_mod = b.addModule("pluginz", .{
+        .root_source_file = b.path("src/pluginz/root.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // Private modules
+    pluginz_engine_mod.addImport("options", options_mod);
+    pluginz_application_mod.addImport("options", options_mod);
+    pluginz_application_mod.addImport("pluginz.engine", pluginz_engine_mod);
+
+    // Public modules
+    pluginz_mod.addImport("options", options_mod);
+    pluginz_mod.addImport("pluginz.engine", pluginz_engine_mod);
+    pluginz_mod.addImport("pluginz.application", pluginz_application_mod);
+
+    // Exe
+    pluginz_exe_mod.addImport("pluginz.engine", pluginz_engine_mod);
+    pluginz_exe_mod.addImport("pluginz.application", pluginz_application_mod);
+    pluginz_exe_mod.addImport("options", options_mod);
 
     // Artifacts
     const exe = b.addExecutable(.{
         .name = name,
-        .root_module = exe_mod,
+        .root_module = pluginz_exe_mod,
         .version = sem_ver,
     });
 

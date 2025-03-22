@@ -1,21 +1,19 @@
 const std = @import("std");
 const log = std.log;
-const Engine = @import("engine").Engine;
-const ApplicationCallbacks = @import("engine").ApplicationCallbacks;
-const Application = @import("engine").Application;
+
+const Engine = @import("pluginz.engine").Engine;
+const ApplicationCallbacks = @import("pluginz.application").ApplicationCallbacks;
+const Application = @import("pluginz.application").Application;
 
 pub fn main() !void {
-    var application: Application = undefined;
-    var engine: Engine = undefined;
-
     var callbacks = try ApplicationCallbacks.init();
     defer callbacks.deinit();
 
-    engine = try Engine.init();
+    var engine = try Engine.init();
     defer engine.deinit();
 
-    application = try Application.init(&callbacks, &engine);
-    defer application.deinit(&engine);
+    var app: Application = try .init(&callbacks, &engine);
+    defer app.deinit(&engine);
 
     //engine.run();
 }

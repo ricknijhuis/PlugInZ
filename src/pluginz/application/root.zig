@@ -6,7 +6,7 @@ const options = @import("options");
 
 const BoundedArray = std.BoundedArray;
 const DynLib = std.DynLib;
-const Engine = @import("engine.zig").Engine;
+const Engine = @import("pluginz.engine").Engine;
 
 pub const ApplicationCallbacks = struct {
     lib: DynLib,
